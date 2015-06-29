@@ -1,10 +1,9 @@
-;;; git-commit.el --- edit Git commit messages  -*- lexical-binding: t; -*-
+;;; git-commit.el --- Edit Git commit messages  -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2010-2015  The Magit Project Developers
+;; Copyright (C) 2010-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Authors: Jonas Bernoulli <jonas@bernoul.li>
 ;;	Sebastian Wiesner <lunaryorn@gmail.com>
@@ -12,8 +11,9 @@
 ;;	Marius Vollmer <marius.vollmer@gmail.com>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
 
+;; Package-Requires: ((emacs "24.4") (dash "2.10.0") (with-editor "2.0.50"))
+;; Keywords: git tools vc
 ;; Homepage: https://github.com/magit/magit
-;; Keywords: convenience vc git
 
 ;; This file is not part of GNU Emacs.
 
@@ -132,6 +132,7 @@
   :prefix "git-commit-"
   :group 'tools)
 
+;;;###autoload
 (define-minor-mode global-git-commit-mode
   "Edit Git commit messages.
 This global mode arranges for `git-commit-setup' to be called
@@ -434,6 +435,10 @@ finally check current non-comment text."
    'git-commit-finish-query-functions force))
 
 (defun git-commit-check-style-conventions (force)
+  "Check for violations of certain basic style conventions.
+For each violation ask the user if she wants to proceed anyway.
+This makes sure the summary line isn't to long and that the
+second line is empty."
   (or force
       (save-excursion
         (goto-char (point-min))

@@ -1,10 +1,9 @@
 ;;; magit-bisect.el --- bisect support for Magit
 
-;; Copyright (C) 2011-2015  The Magit Project Developers
+;; Copyright (C) 2011-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -79,7 +78,7 @@ other actions from the bisect popup (\
 
 ;;;###autoload
 (defun magit-bisect-reset ()
-  "After bisecting, cleanup bisection state and return to original HEAD."
+  "After bisecting, cleanup bisection state and return to original `HEAD'."
   (interactive)
   (when (magit-confirm 'reset-bisect)
     (magit-run-git "bisect" "reset")

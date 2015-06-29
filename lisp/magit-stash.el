@@ -1,10 +1,9 @@
 ;;; magit-stash.el --- stash support for Magit
 
-;; Copyright (C) 2008-2015  The Magit Project Developers
+;; Copyright (C) 2008-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -234,8 +233,8 @@ When the region is active offer to drop all contained stashes."
 (defun magit-stash-create (message index worktree untracked)
   (unless (magit-rev-parse "--verify" "HEAD")
     (error "You do not have the initial commit yet"))
-  (let ((magit-git-standard-options (nconc (list "-c" "commit.gpgsign=false")
-                                           magit-git-standard-options))
+  (let ((magit-git-global-arguments (nconc (list "-c" "commit.gpgsign=false")
+                                           magit-git-global-arguments))
         (default-directory (magit-toplevel))
         (conflicts (magit-anything-unmerged-p))
         (summary (magit-stash-summary))
@@ -295,7 +294,6 @@ instead of \"Stashes:\"."
     (magit-insert-section (stashes ref)
       (magit-insert-heading heading)
       (magit-git-wash (apply-partially 'magit-log-wash-log 'stash)
-        "-c" "log.date=default" ; kludge for <1.7.10.3, see #1427
         "reflog" "--format=%gd %at %gs" ref))))
 
 ;;; List Stashes
@@ -328,7 +326,6 @@ The following `format'-like specs are supported:
   (magit-insert-section (stashesbuf)
     (magit-insert-heading heading)
     (magit-git-wash (apply-partially 'magit-log-wash-log 'stash)
-      "-c" "log.date=default" ; kludge for <1.7.10.3, see #1427
       "reflog" "--format=%gd %at %gs" ref)))
 
 ;;; Show Stash

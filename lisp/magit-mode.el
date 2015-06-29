@@ -1,10 +1,9 @@
 ;;; magit-mode.el --- create and refresh Magit buffers
 
-;; Copyright (C) 2010-2015  The Magit Project Developers
+;; Copyright (C) 2010-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -167,13 +166,14 @@ therefore does not have to be reverted."
   :options '(magit-refresh-vc-mode-line))
 
 (defcustom magit-save-repository-buffers t
-  "Whether to save modified buffers when approriate.
+  "Whether to save file-visiting buffers when appropriate.
 
-If this is non-nil then modified buffers belonging to the current
-repository may be saved when the status buffer is being refreshed
-and before a checkout is performed.  When the value is `dontask'
-then this is done without user intervention, when it is t then
-the user has to confirm each save."
+If this is non-nil then all modified file-visiting buffers
+belonging to the current repository may be saved before running
+commands, before creating new Magit buffers, and before
+explicitly refreshing such buffers.  It this is `dontask' then
+this is done without user intervention, if it is t then the user
+has to confirm each save."
   :group 'magit
   :type '(choice (const :tag "Never" nil)
                  (const :tag "Ask" t)
@@ -253,6 +253,7 @@ the user has to confirm each save."
     (define-key map "\C-xa"  'magit-add-change-log-entry)
     (define-key map "\C-x4a" 'magit-add-change-log-entry-other-window)
     (define-key map "\C-w"   'magit-copy-as-kill)
+    (define-key map "\M-w"   'magit-copy-buffer-thing-as-kill)
     (define-key map [remap evil-previous-line] 'evil-previous-visual-line)
     (define-key map [remap evil-next-line] 'evil-next-visual-line)
     map)
@@ -347,10 +348,16 @@ Magit is documented in info node `(magit)'."
   (mapc #'delete-overlay magit-region-overlays)
   (funcall (default-value 'redisplay-unhighlight-region-function) rol))
 
-(defvar-local magit-refresh-function nil)
+(defvar-local magit-refresh-function nil
+  "The function used to refresh the current buffer.
+This is called with `magit-refresh-args' as arguments.
+The value is usually set using `magit-mode-setup'.")
 (put 'magit-refresh-function 'permanent-local t)
 
-(defvar-local magit-refresh-args nil)
+(defvar-local magit-refresh-args nil
+  "The arguments used to refresh the current buffer.
+`magit-refresh-function' is called with these arguments.
+The value is usually set using `magit-mode-setup'.")
 (put 'magit-refresh-args 'permanent-local t)
 
 (defmacro magit-mode-setup
@@ -468,7 +475,7 @@ With a prefix argument, kill the buffer instead.
 If `magit-restore-window-configuration' is non-nil and the last
 configuration stored by `magit-mode-display-buffer' originates
 from the selected frame then restore it after burying/killing
-the buffer.  Finally reset the window configuration to nil."
+the buffer."
   (interactive "P")
   (let ((winconf magit-previous-window-configuration)
         (buffer (current-buffer))
@@ -516,9 +523,10 @@ With a prefix argument, the user can pick an arbitrary name."
 
 Refresh the current buffer if its major mode derives from
 `magit-mode', and refresh the corresponding status buffer.
-If the `magit-revert-buffers' is in non-nil, then also
-revert all unmodified buffers that visit files being
-tracked in the current repository."
+
+If option `magit-revert-buffers' call for it, then also revert
+all unmodified buffers that visit files being tracked in the
+current repository."
   (interactive)
   (unless inhibit-magit-refresh
     (when (derived-mode-p 'magit-mode)
@@ -536,6 +544,7 @@ tracked in the current repository."
   "Refresh all buffers belonging to the current repository.
 
 Refresh all Magit buffers belonging to the current repository.
+
 Also always revert all unmodified buffers that visit files being
 tracked in the current repository."
   (interactive)

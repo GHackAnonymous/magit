@@ -1,6 +1,10 @@
 Authors
 =======
 
+The following people have contributed to Magit, including the
+libraries `git-commit.el`, `magit-popup.el`, and `with-editor.el`
+which are distributed as separate Elpa packages.
+
 For statistics see http://magit.vc/stats/authors.html.
 
 Names below are sorted alphabetically.
@@ -140,6 +144,7 @@ Contributors
 - Nicolas Richard <theonewiththeevillook@yahoo.fr>
 - Noam Postavsky <npostavs@users.sourceforge.net>
 - Ole Arndt <oliver.arndt@cegedim.com>
+- Oleh Krehel <ohwoeowho@gmail.com>
 - Óscar Fuentes <ofv@wanadoo.es>
 - Paul Stadig <paul@stadig.name>
 - Pavel Holejsovsky <pavel.holejsovsky@upek.com>
@@ -201,6 +206,7 @@ Contributors
 - Wei Huang <weih@opera.com>
 - Wilfred Hughes <me@wilfred.me.uk>
 - Win Treese <treese@acm.org>
+- Xavier Noria <fxn@hashref.com>
 - Yann Hodique <yann.hodique@gmail.com>
 - York Zhao <gtdplatform@gmail.com>
 - Yuichi Higashi <aaa707b@gmail.com>

@@ -1,10 +1,9 @@
 ;;; magit-section.el --- section functionality
 
-;; Copyright (C) 2010-2015  The Magit Project Developers
+;; Copyright (C) 2010-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -401,23 +400,28 @@ hidden."
   (interactive)
   (-when-let (sections
               (cond ((derived-mode-p 'magit-status-mode)
-                     (and (magit-get-section '((staged)   (status)))
-                          (magit-get-section '((unstaged) (status)))))
+                     (--mapcat
+                      (when it
+                        (when (magit-section-hidden it)
+                          (magit-section-show it))
+                        (magit-section-children it))
+                      (list (magit-get-section '((staged)   (status)))
+                            (magit-get-section '((unstaged) (status))))))
                     ((derived-mode-p 'magit-diff-mode)
                      (--filter (eq (magit-section-type it) 'file)
                                (magit-section-children magit-root-section)))))
-      (if (-any? 'magit-section-hidden sections)
-          (dolist (s sections)
-            (magit-section-show s)
-            (magit-section-hide-children s))
-        (let ((children (cl-mapcan 'magit-section-children sections)))
-          (cond ((and (-any? 'magit-section-hidden   children)
-                      (-any? 'magit-section-children children))
-                 (mapc 'magit-section-show-headings sections))
-                ((-any? 'magit-section-hidden-body children)
-                 (mapc 'magit-section-show-children sections))
-                (t
-                 (mapc 'magit-section-hide sections)))))))
+    (if (-any? 'magit-section-hidden sections)
+        (dolist (s sections)
+          (magit-section-show s)
+          (magit-section-hide-children s))
+      (let ((children (cl-mapcan 'magit-section-children sections)))
+        (cond ((and (-any? 'magit-section-hidden   children)
+                    (-any? 'magit-section-children children))
+               (mapc 'magit-section-show-headings sections))
+              ((-any? 'magit-section-hidden-body children)
+               (mapc 'magit-section-show-children sections))
+              (t
+               (mapc 'magit-section-hide sections)))))))
 
 (defun magit-section-hidden-body (section &optional pred)
   (--if-let (magit-section-children section)

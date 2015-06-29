@@ -1,10 +1,9 @@
 ;;; magit-blame.el --- blame support for Magit
 
-;; Copyright (C) 2012-2015  The Magit Project Developers
+;; Copyright (C) 2012-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -66,7 +65,12 @@ and then turned on again when turning on the latter."
   :group 'magit-blame
   :type '(choice (const :tag "No lighter" "") string))
 
-(defvar magit-blame-log t)
+(defcustom magit-blame-goto-chunk-hook '(magit-log-maybe-show-commit)
+  "Hook run by `magit-blame-next-chunk' and `magit-blame-previous-chunk'."
+  :package-version '(magit . "2.1.0")
+  :group 'magit-blame
+  :type 'hook
+  :options '(magit-log-maybe-show-commit))
 
 (defface magit-blame-heading
   '((((class color) (background light))
@@ -137,9 +141,7 @@ and then turned on again when turning on the latter."
   :lighter magit-blame-mode-lighter
   (cond (magit-blame-mode
          (setq magit-blame-buffer-read-only buffer-read-only)
-         (if (fboundp 'read-only-mode)
-             (read-only-mode 1)
-           (setq buffer-read-only t))
+         (read-only-mode 1)
          (dolist (mode magit-blame-disable-modes)
            (when (and (boundp mode) (symbol-value mode))
              (funcall mode -1)
@@ -152,9 +154,7 @@ and then turned on again when turning on the latter."
              (call-interactively 'magit-blame))))
         (t
          (unless magit-blame-buffer-read-only
-           (if (fboundp 'read-only-mode)
-               (read-only-mode -1)
-             (setq buffer-read-only nil)))
+           (read-only-mode -1))
          (dolist (mode magit-blame-disabled-modes)
            (funcall mode 1))
          (when (process-live-p magit-blame-process)
@@ -179,8 +179,10 @@ See #1731."
   :man-page "git-blame"
   :switches '((?w "Ignore whitespace" "-w")
               (?r "Do not treat root commits as boundaries" "--root"))
-  :options  '((?C "Detect lines moved or copied within a file" "-C" read-number)
-              (?M "Detect lines moved or copied between files" "-M" read-number))
+  :options  '((?C "Detect lines moved or copied within a file" "-C"
+                  magit-popup-read-number)
+              (?M "Detect lines moved or copied between files" "-M"
+                  magit-popup-read-number))
   :actions  '((?b "Blame" magit-blame))
   :default-arguments '("-w")
   :default-action 'magit-blame)
@@ -188,6 +190,7 @@ See #1731."
 ;;;###autoload
 (defun magit-blame (revision file &optional args line)
   "Display edit history of FILE up to REVISION.
+
 Interactively blame the file being visited in the current buffer.
 If the buffer visits a revision of that file, then blame up to
 that revision, otherwise blame the file's full history, including
@@ -265,6 +268,10 @@ only arguments available from `magit-blame-popup' should be used.
         (with-current-buffer (process-get process 'command-buf)
           (magit-blame-mode -1))
         (message "Blaming...failed")))))
+
+(defvar magit-blame-log nil
+  "Whether to log blame output to the process buffer.
+This is intended for debugging purposes.")
 
 (defun magit-blame-process-filter (process string)
   (when magit-blame-log
@@ -387,10 +394,6 @@ then also kill the buffer."
   (if magit-blame-recursive-p
       (kill-buffer)
     (magit-blame-mode -1)))
-
-(defvar magit-blame-goto-chunk-hook
-  '(magit-log-maybe-show-commit)
-  "Hook run by `magit-blame-next-chunk' and `magit-blame-previous-chunk'.")
 
 (defun magit-blame-next-chunk ()
   "Move to the next chunk."

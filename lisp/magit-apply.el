@@ -1,10 +1,9 @@
 ;;; magit-apply.el --- apply Git diffs
 
-;; Copyright (C) 2010-2015  The Magit Project Developers
+;; Copyright (C) 2010-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -35,6 +34,8 @@
 (require 'magit-diff)
 (require 'magit-wip)
 
+;; For `magit-apply'
+(declare-function magit-am-popup 'magit-sequence)
 ;; For `magit-discard-files'
 (declare-function magit-checkout-stage 'magit)
 (declare-function magit-checkout-read-stage 'magit)
@@ -60,9 +61,10 @@ With a prefix argument and if necessary, attempt a 3-way merge."
     (pcase (list (magit-diff-type) (magit-diff-scope))
       (`(,(or `unstaged `staged) ,_)
        (user-error "Change is already in the working tree"))
-      (`(,_ region) (magit-apply-region it args))
-      (`(,_   hunk) (magit-apply-hunk it args))
-      (`(,_   file) (magit-apply-diff it args)))))
+      (`(untracked file) (magit-am-popup))
+      (`(,_      region) (magit-apply-region it args))
+      (`(,_        hunk) (magit-apply-hunk it args))
+      (`(,_        file) (magit-apply-diff it args)))))
 
 (defun magit-apply-diff (section &rest args)
   (magit-apply-patch section args
@@ -402,14 +404,15 @@ without requiring confirmation."
                section "--reverse"))))
 
 (defun magit-reverse-files (sections)
-  (cl-destructuring-bind (binaries files)
+  (cl-destructuring-bind (binaries sections)
       (let ((binaries (magit-staged-binary-files)))
         (--separate (member (magit-section-value it) binaries) sections))
-    (when (magit-confirm-files 'reverse (mapcar #'magit-section-value files))
-      (magit-wip-commit-before-change files " before reverse")
-      (let ((magit-apply-inhibit-wip t))
-        (mapc #'magit-reverse-apply files))
-      (magit-wip-commit-after-apply files " after reverse"))
+    (let ((files (mapcar #'magit-section-value sections)))
+      (when (magit-confirm-files 'reverse files)
+        (magit-wip-commit-before-change files " before reverse")
+        (let ((magit-apply-inhibit-wip t))
+          (mapc #'magit-reverse-apply sections))
+        (magit-wip-commit-after-apply files " after reverse")))
     (when binaries
       (user-error "Cannot reverse binary files"))))
 

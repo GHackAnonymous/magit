@@ -1,10 +1,9 @@
 ;;; magit-remote.el --- transfer Git commits
 
-;; Copyright (C) 2008-2015  The Magit Project Developers
+;; Copyright (C) 2008-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -121,7 +120,7 @@ then read the remote."
 
 ;;;###autoload
 (defun magit-fetch-all (&optional args)
-  "Fetch from another repository."
+  "Fetch from all configured remotes."
   (interactive (list (magit-fetch-arguments)))
   (magit-run-git-async-no-revert "remote" "update" args))
 
@@ -139,7 +138,7 @@ then read the remote."
 
 ;;;###autoload
 (defun magit-pull-current (remote branch &optional args)
-  "Fetch from another repository and merge into current branch."
+  "Fetch and merge into current branch."
   (interactive (magit-pull-read-args t))
   (magit-run-git-async "pull" args remote branch))
 

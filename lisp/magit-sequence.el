@@ -1,10 +1,9 @@
 ;;; magit-sequence.el --- history manipulation in Magit
 
-;; Copyright (C) 2011-2015  The Magit Project Developers
+;; Copyright (C) 2011-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -224,7 +223,8 @@ without prompting."
               (?d "Use author date as committer date"
                   "--committer-date-is-author-date")
               (?D "Use committer date as author date" "--ignore-date"))
-  :options  '((?p "Remove leading slashes from paths" "-p" read-number))
+  :options  '((?p "Remove leading slashes from paths" "-p"
+                  magit-popup-read-number))
   :actions  '((?w "Apply patches" magit-am-apply-patches)
               (?m "Apply maildir" magit-am-apply-maildir))
   :default-arguments '("--3way")
@@ -238,7 +238,8 @@ without prompting."
 (defun magit-am-apply-patches (&optional files args)
   "Apply the patches FILES."
   (interactive (list (or (magit-region-values 'file)
-                         (list (read-file-name "Apply patch: ")))
+                         (list (read-file-name "Apply patch: " nil
+                                               (magit-file-at-point))))
                      (magit-am-arguments)))
   (magit-run-git-sequencer "am" args "--" (mapcar 'expand-file-name files)))
 

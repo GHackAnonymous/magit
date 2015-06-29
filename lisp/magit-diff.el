@@ -1,10 +1,9 @@
 ;;; magit-diff.el --- inspect Git diffs
 
-;; Copyright (C) 2010-2015  The Magit Project Developers
+;; Copyright (C) 2010-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -245,20 +244,26 @@ The following `format'-like specs are supported:
   :type 'string)
 
 (defcustom magit-revision-show-diffstat t
-  "Whether to show diffstat in commit buffers."
+  "Whether to show diffstat in revision buffers."
   :package-version '(magit . "2.1.0")
   :group 'magit-revision
   :type 'boolean)
 
 (defcustom magit-revision-show-notes t
-  "Whether to show notes in commit buffers."
+  "Whether to show notes in revision buffers."
   :package-version '(magit . "2.1.0")
   :group 'magit-revision
   :safe 'booleanp
   :type 'boolean)
 
 (defcustom magit-revision-show-xref-buttons t
-  "Whether to show buffer history buttons in commit buffers."
+  "Whether to show buffer history buttons in revision buffers."
+  :package-version '(magit . "2.1.0")
+  :group 'magit-revision
+  :type 'boolean)
+
+(defcustom magit-revision-insert-related-refs t
+  "Whether to show related refs in revision buffers."
   :package-version '(magit . "2.1.0")
   :group 'magit-revision
   :type 'boolean)
@@ -537,7 +542,7 @@ The following `format'-like specs are supported:
 
 ;;;###autoload
 (defun magit-diff (range &optional args files)
-    "Show differences between two commits.
+  "Show differences between two commits.
 RANGE should be a range (A..B or A...B) but can also be a single
 commit.  If one side of the range is omitted, then it defaults
 to HEAD.  If just a commit is given, then changes in the working
@@ -688,6 +693,7 @@ for a commit."
          magit-diff-section-arguments)))
 
 (defun magit-diff-refresh (args)
+  "Set the local diff arguments for the current buffer."
   (interactive (list (magit-diff-refresh-arguments)))
   (cond ((derived-mode-p 'magit-diff-mode)
          (setq magit-refresh-args (list (car magit-refresh-args) args)))
@@ -696,6 +702,7 @@ for a commit."
   (magit-refresh))
 
 (defun magit-diff-set-default-arguments (args)
+  "Set the global diff arguments for the current buffer."
   (interactive (list (magit-diff-refresh-arguments)))
   (cond ((derived-mode-p 'magit-diff-mode)
          (customize-set-variable 'magit-diff-arguments args)
@@ -706,6 +713,7 @@ for a commit."
   (magit-refresh))
 
 (defun magit-diff-save-default-arguments (args)
+  "Set and save the global diff arguments for the current buffer."
   (interactive (list (magit-diff-refresh-arguments)))
   (cond ((derived-mode-p 'magit-diff-mode)
          (customize-save-variable 'magit-diff-arguments args)
@@ -778,7 +786,7 @@ When the file is already being displayed in another window of the
 same frame, then just select that window and adjust point.  With
 a prefix argument also display in another window.
 
-If the diff shows changes in the worktree, the index, or HEAD,
+If the diff shows changes in the worktree, the index, or `HEAD',
 then visit the actual file.  Otherwise when the diff is about
 an older commit, then visit the respective blob using
 `magit-find-file'.  Also see `magit-diff-visit-file-worktree'
@@ -833,7 +841,7 @@ reliable.
 
 Also see `magit-diff-visit-file-worktree' which visits the
 respective blob, unless the diff shows changes in the worktree,
-the index, or HEAD."
+the index, or `HEAD'."
   (interactive (list (or (magit-file-at-point)
                          (user-error "No file at point"))
                      current-prefix-arg))
@@ -1241,8 +1249,6 @@ Type \\[magit-reverse] to reverse the change at point in the worktree.
       (and magit-revision-show-diffstat "--stat")
       (and magit-revision-show-notes "--notes")
       args commit "--")))
-
-(defvar magit-revision-insert-related-refs t)
 
 (defun magit-diff-wash-revision (args)
   (magit-diff-wash-tag)
@@ -1683,7 +1689,9 @@ are highlighted."
 (defvar magit-diff-unmarked-lines-keep-foreground t)
 
 (defun magit-diff-update-hunk-region (section)
-  (when (eq (magit-diff-scope section t) 'region)
+  (when (and (eq (magit-diff-scope section t) 'region)
+             (not (and (eq this-command 'mouse-drag-region)
+                       (eq (mark) (point)))))
     (let ((sbeg (magit-section-start section))
           (cbeg (magit-section-content section))
           (rbeg (save-excursion (goto-char (region-beginning))

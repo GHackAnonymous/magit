@@ -1,15 +1,15 @@
-;;; with-editor.el --- use the Emacsclient as $EDITOR -*- lexical-binding: t -*-
+;;; with-editor.el --- Use the Emacsclient as $EDITOR -*- lexical-binding: t -*-
 
-;; Copyright (C) 2014-2015  The Magit Project Developers
+;; Copyright (C) 2014-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
 
-;; Package-Requires: ((emacs "24.4") (cl-lib "0.5") (dash "2.10.0"))
+;; Package-Requires: ((emacs "24.4") (dash "2.10.0"))
+;; Keywords: tools
 ;; Homepage: https://github.com/magit/magit
 
 ;; This file is not part of GNU Emacs.
@@ -87,7 +87,8 @@
 (eval-when-compile
   (progn (require 'dired nil t)
          (require 'eshell nil t)
-         (require 'term nil t)))
+         (require 'term nil t)
+         (require 'warnings nil t)))
 (declare-function dired-get-filename 'dired)
 (declare-function term-emulate-terminal 'term)
 (defvar eshell-preoutput-filter-functions)
@@ -101,6 +102,39 @@
 
 (defun with-editor-locate-emacsclient ()
   "Search for a suitable Emacsclient executable."
+  (--if-let (with-editor-locate-emacsclient-1 (with-editor-emacsclient-path) 3)
+      (shell-quote-argument it)
+    (display-warning 'with-editor (format "\
+Cannot determine a suitable Emacsclient
+
+Determining an Emacsclient executable suitable for the
+current Emacs instance failed.  For more information
+please see https://github.com/magit/magit/wiki/Emacsclient."))
+    nil))
+
+(defun with-editor-locate-emacsclient-1 (path depth)
+  (let* ((version-lst (-take depth (split-string emacs-version "\\.")))
+         (version-reg (concat "^" (mapconcat #'identity version-lst "\\."))))
+    (or (locate-file-internal
+         "emacsclient" path
+         (cl-mapcan
+          (lambda (v) (cl-mapcar (lambda (e) (concat v e)) exec-suffixes))
+          (nconc (cl-mapcon (lambda (v)
+                              (setq v (mapconcat #'identity (reverse v) "."))
+                              (list v (concat "-" v)))
+                            (reverse version-lst))
+                 (list "")))
+         (lambda (exec)
+           (ignore-errors
+             (string-match-p version-reg
+                             (with-editor-emacsclient-version exec)))))
+        (and (> depth 1)
+             (with-editor-locate-emacsclient-1 path (1- depth))))))
+
+(defun with-editor-emacsclient-version (exec)
+  (cadr (split-string (car (process-lines exec "--version")))))
+
+(defun with-editor-emacsclient-path ()
   (let ((path exec-path))
     (when invocation-directory
       (push (directory-file-name invocation-directory) path)
@@ -116,38 +150,7 @@
           (let ((dir (expand-file-name "../../../bin" invocation-directory)))
             (when (file-directory-p dir)
               (push dir path))))))
-    (--if-let (with-editor-locate-emacsclient-1
-               (cl-remove-duplicates path :test 'equal) 3)
-        (shell-quote-argument it)
-      (display-warning 'with-editor (format "\
-Cannot determine a suitable Emacsclient
-
-Determining an Emacsclient executable suitable for the
-current Emacs instance failed.  For more information
-please see https://github.com/magit/magit/wiki/Emacsclient."))
-      nil)))
-
-(defun with-editor-locate-emacsclient-1 (path depth)
-  (let* ((version-lst (-take depth (split-string emacs-version "\\.")))
-         (version-reg (concat "^" (mapconcat #'identity version-lst "\\."))))
-    (or (locate-file-internal
-         "emacsclient" path
-         (cl-mapcan
-          (lambda (v) (cl-mapcar (lambda (e) (concat v e)) exec-suffixes))
-          (nconc (cl-mapcon (lambda (v)
-                              (setq v (mapconcat #'identity (reverse v) "."))
-                              (list v (concat "-" v)))
-                            (reverse version-lst))
-                 (list "")))
-         (lambda (exec)
-           (and (ignore-errors
-                  (string-match-p
-                   version-reg
-                   (cadr (split-string
-                          (car (process-lines exec "--version"))))))
-                (file-executable-p exec))))
-        (and (> depth 1)
-             (with-editor-locate-emacsclient-1 path (1- depth))))))
+    (cl-remove-duplicates path :test 'equal)))
 
 (defcustom with-editor-emacsclient-executable (with-editor-locate-emacsclient)
   "The Emacsclient executable used by the `with-editor' macro."
@@ -155,7 +158,7 @@ please see https://github.com/magit/magit/wiki/Emacsclient."))
   :type '(choice (string :tag "Executable")
                  (const  :tag "Don't use Emacsclient" nil)))
 
-(defcustom with-editor-looping-editor "\
+(defcustom with-editor-sleeping-editor "\
 sh -c '\
 echo \"WITH-EDITOR: $$ OPEN $0\"; \
 sleep 604800 & sleep=$!; \
@@ -220,10 +223,7 @@ REGEXP are selected using FUNCTION instead of the default in
 
 Note that when a package adds an entry here then it probably
 has a reason to disrespect `server-window' and it likely is
-not a good idea to change such entries.  The `git-commit' and
-`git-rebase' packages do no add entries themselves but loading
-`magit' does add entries for the files handled by these packages.
-Don't change these, or Magit will get confused.")
+not a good idea to change such entries.")
 
 ;;; Mode Commands
 
@@ -359,7 +359,7 @@ ENVVAR is provided then bind that environment variable instead.
          (process-environment process-environment))
      (if (or (not with-editor-emacsclient-executable)
              (file-remote-p default-directory))
-         (setenv with-editor--envvar with-editor-looping-editor)
+         (setenv with-editor--envvar with-editor-sleeping-editor)
        ;; Make sure server-use-tcp's value is valid.
        (unless (featurep 'make-network-process '(:family local))
          (setq server-use-tcp t))
@@ -382,7 +382,7 @@ ENVVAR is provided then bind that environment variable instead.
          (setenv "EMACS_SERVER_FILE"
                  (expand-file-name server-name server-auth-dir)))
        ;; As last resort fallback to the looping editor.
-       (setenv "ALTERNATE_EDITOR" with-editor-looping-editor))
+       (setenv "ALTERNATE_EDITOR" with-editor-sleeping-editor))
      ,@body))
 
 (defun with-editor-server-window ()
@@ -417,7 +417,7 @@ the appropriate editor environment variable."
         (unless (equal program "env")
           (push prog args)
           (setq prog "env"))
-        (push (concat with-editor--envvar "=" with-editor-looping-editor) args)
+        (push (concat with-editor--envvar "=" with-editor-sleeping-editor) args)
         (ad-set-arg  2 prog)
         (ad-set-args 3 args)))
     (let ((process ad-do-it))
@@ -491,7 +491,7 @@ This works in `shell-mode', `term-mode' and `eshell-mode'."
       (goto-char (process-mark process))
       (process-send-string
        process (format "export %s=%s\n" envvar
-                       (shell-quote-argument with-editor-looping-editor)))
+                       (shell-quote-argument with-editor-sleeping-editor)))
       (while (accept-process-output process 0.1))
       (set-process-filter process filter)
       (if (derived-mode-p 'term-mode)
@@ -501,7 +501,7 @@ This works in `shell-mode', `term-mode' and `eshell-mode'."
    ((derived-mode-p 'eshell-mode)
     (add-to-list 'eshell-preoutput-filter-functions
                  'with-editor-output-filter)
-    (setenv envvar with-editor-looping-editor))
+    (setenv envvar with-editor-sleeping-editor))
    (t
     (error "Cannot export environment variables in this buffer")))
   (message "Successfully exported %s" envvar))
@@ -608,7 +608,7 @@ else like the former."
          (ad-set-arg
           0 (format "%s=%s %s"
                     (or with-editor--envvar "EDITOR")
-                    (shell-quote-argument with-editor-looping-editor)
+                    (shell-quote-argument with-editor-sleeping-editor)
                     (ad-get-arg 0)))
          (let ((process ad-do-it))
            (set-process-filter
@@ -618,6 +618,63 @@ else like the former."
            process))))
 
 ;;; with-editor.el ends soon
+
+(defun with-editor-debug ()
+  "Debug configuration issues.
+See `with-editor.info' for instructions."
+  (interactive)
+  (with-current-buffer (get-buffer-create "*with-editor-debug*")
+    (pop-to-buffer (current-buffer))
+    (erase-buffer)
+    (ignore-errors (with-editor))
+    (insert
+     (format "with-editor: %s\n" (locate-library "with-editor.el"))
+     (format "emacs: %s (%s)\n"
+             (expand-file-name invocation-name invocation-directory)
+             emacs-version)
+     "system:\n"
+     (format "  system-type: %s\n" system-type)
+     (format "  system-configuration: %s\n" system-configuration)
+     (format "  system-configuration-options: %s\n" system-configuration-options)
+     "server:\n"
+     (format "  server-running-p: %s\n" (server-running-p))
+     (format "  server-process: %S\n" server-process)
+     (format "  server-use-tcp: %s\n" server-use-tcp)
+     (format "  server-name: %s\n" server-name)
+     (format "  server-socket-dir: %s\n" server-socket-dir))
+    (if (file-accessible-directory-p server-socket-dir)
+        (--each (directory-files server-socket-dir nil "^[^.]")
+          (insert (format "    %s\n" it)))
+      (insert (format "    %s: not an accessible directory\n"
+                      (if server-use-tcp "WARNING" "ERROR"))))
+    (insert (format "  server-auth-dir: %s\n" server-auth-dir))
+    (if (file-accessible-directory-p server-auth-dir)
+        (--each (directory-files server-auth-dir nil "^[^.]")
+          (insert (format "    %s\n" it)))
+      (insert (format "    %s: not an accessible directory\n"
+                      (if server-use-tcp "ERROR" "WARNING"))))
+    (let ((val with-editor-emacsclient-executable)
+          (def (default-value 'with-editor-emacsclient-executable))
+          (fun (let ((warning-minimum-level :error)
+                     (warning-minimum-log-level :error))
+                 (with-editor-locate-emacsclient))))
+      (insert "magit-emacsclient-executable:\n"
+              (format " value:   %s (%s)\n" val
+                      (and val (with-editor-emacsclient-version val)))
+              (format " default: %s (%s)\n" def
+                      (and def (with-editor-emacsclient-version def)))
+              (format " funcall: %s (%s)\n" fun
+                      (and fun (with-editor-emacsclient-version fun)))))
+    (insert "path:\n"
+            (format "  $PATH: %S\n" (getenv "PATH"))
+            (format "  exec-path: %s\n" exec-path))
+    (insert (format "  with-editor-emacsclient-path:\n"))
+    (--each (with-editor-emacsclient-path)
+      (insert (format "    %s (%s)\n" it (car (file-attributes it))))
+      (when (file-directory-p it)
+        (dolist (exec (directory-files it nil "emacsclient"))
+          (insert (format "      %s (%s)\n" exec
+                          (with-editor-emacsclient-version exec))))))))
 
 (defconst with-editor-font-lock-keywords
   '(("(\\(with-\\(?:git-\\)?editor\\)\\_>" (1 'font-lock-keyword-face))))

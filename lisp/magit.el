@@ -1,10 +1,9 @@
-;;; magit.el --- control Git from Emacs
+;;; magit.el --- A Git porcelain inside Emacs
 
-;; Copyright (C) 2008-2015  The Magit Project Developers
+;; Copyright (C) 2008-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Marius Vollmer <marius.vollmer@gmail.com>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -15,7 +14,9 @@
 ;;	Rémi Vanicat      <vanicat@debian.org>
 ;;	Yann Hodique      <yann.hodique@gmail.com>
 
-;; Keywords: vc tools
+;; Package-Requires: ((emacs "24.4") (dash "2.10.0") (with-editor "2.0.50") (git-commit "2.0.50") (magit-popup "2.0.50"))
+;; Keywords: git tools vc
+;; Homepage: https://github.com/magit/magit
 
 ;; Magit requires at least GNU Emacs 24.4 and Git 1.9.4.
 
@@ -35,15 +36,13 @@
 ;;; Commentary:
 
 ;; Magit is an interface to the version control system Git,
-;; or as they call it a Git porcelain.
-
-;; Unlike the VC package which is part of Emacs and strives to provide
-;; a unified interface to various version control systems, Magit only
-;; supports Git and can therefore better take advantage of its native
-;; features.
-
-;; The main entry point is `magit-status'.
-;; See the Magit User Manual for more information.
+;; implemented as an Emacs package.  Magit aspires to be a complete
+;; Git porcelain.  While we cannot (yet) claim, that Magit wraps and
+;; improves upon each and every Git command, it is complete enough to
+;; allow even experienced Git users to perform almost all of their
+;; daily version control tasks directly from within Emacs.  While many
+;; fine Git clients exist, only Magit and Git itself deserve to be
+;; called porcelains.
 
 ;;; Code:
 
@@ -318,11 +317,13 @@ deep."
 
 (defface magit-cherry-unmatched
   '((t :foreground "cyan"))
-  "Face for unmatched cherry commits.")
+  "Face for unmatched cherry commits."
+  :group 'magit-faces)
 
 (defface magit-cherry-equivalent
   '((t :foreground "magenta"))
-  "Face for equivalent cherry commits.")
+  "Face for equivalent cherry commits."
+  :group 'magit-faces)
 
 (defface magit-filename
   '((t :weight normal))
@@ -655,10 +656,14 @@ Refs are compared with a branch read form the user."
           "\\] \\)?"
           "\\(?3:.*\\)"))                   ; message
 
-(defvar magit-refs-local-branch-format "%4c %-25n %U%m\n")
-(defvar magit-refs-remote-branch-format "%4c %-25n %m\n")
-(defvar magit-refs-tags-format "%4c %-25n %m\n")
-(defvar magit-refs-indent-cherry-lines 3)
+(defvar magit-refs-local-branch-format "%4c %-25n %U%m\n"
+  "Format used for local branches in refs buffers.")
+(defvar magit-refs-remote-branch-format "%4c %-25n %m\n"
+  "Format used for remote branches in refs buffers.")
+(defvar magit-refs-tags-format "%4c %-25n %m\n"
+  "Format used for tags in refs buffers.")
+(defvar magit-refs-indent-cherry-lines 3
+  "Indentation of cherries in refs buffers.")
 
 (defvar magit-branch-section-map
   (let ((map (make-sparse-keymap)))
@@ -1081,16 +1086,22 @@ defaulting to the branch at point."
                    (user-error "Abort")))))
        (user-error "Abort"))
      (list branches force)))
-  (let ((ref (car (-filter #'magit-ref-fullname branches))))
-    (unless ref
-      (magit-read-char-case "Ambigious ref(s).  Do you want to delete " nil
-        (?r "[r]emote branch(es)"
-            (setq ref (concat "refs/remotes/" (car branches))))
-        (?l "or [l]ocal branch(es)"
-            (setq ref (concat "refs/heads/" (car branches))))))
+  (let* ((refs (-map #'magit-ref-fullname branches))
+         (ambiguous (--filter (not it) refs)))
+    (when ambiguous
+      (user-error
+       "%s ambiguous.  Please cleanup using git directly."
+       (let ((len (length ambiguous)))
+         (cond
+          ((= len 1)
+           (format "%s is" (--first (not (magit-ref-fullname it)) branches)))
+          ((= len (length refs))
+           (format "These %s names are" len))
+          (t
+           (format "%s of these names are" len))))))
     (cond
-     ((string-match "^refs/remotes/\\([^/]+\\)" ref)
-      (let* ((remote (match-string 1 ref))
+     ((string-match "^refs/remotes/\\([^/]+\\)" (car refs))
+      (let* ((remote (match-string 1 (car refs)))
              (offset (1+ (length remote))))
         (magit-run-git-async
          "push" remote (--map (concat ":" (substring it offset)) branches))))
@@ -1701,7 +1712,7 @@ based on URL."
 
 ;;;###autoload
 (defun magit-submodule-init ()
-  "Register submodules listed in .gitmodules into .git/config."
+  "Register submodules listed in \".gitmodules\" into \".git/config\"."
   (interactive)
   (magit-with-toplevel
     (magit-run-git-async "submodule" "init")))
@@ -1709,21 +1720,21 @@ based on URL."
 ;;;###autoload
 (defun magit-submodule-update (&optional init)
   "Clone missing submodules and checkout appropriate commits.
-With a prefix argument also register submodules in .git/config."
+With a prefix argument also register submodules in \".git/config\"."
   (interactive "P")
   (magit-with-toplevel
     (magit-run-git-async "submodule" "update" (and init "--init"))))
 
 ;;;###autoload
 (defun magit-submodule-sync ()
-  "Update each submodule's remote URL according to .gitmodules."
+  "Update each submodule's remote URL according to \".gitmodules\"."
   (interactive)
   (magit-with-toplevel
     (magit-run-git-async "submodule" "sync")))
 
 ;;;###autoload
 (defun magit-submodule-fetch (&optional all)
-  "Fetch submodule.
+  "Fetch all submodules.
 With a prefix argument fetch all remotes."
   (interactive "P")
   (magit-with-toplevel
@@ -1781,7 +1792,9 @@ With a prefix argument fetch all remotes."
 (defun magit-git-command (args directory)
   "Execute a Git subcommand asynchronously, displaying the output.
 With a prefix argument run Git in the root of the current
-repository.  Non-interactively run Git in DIRECTORY with ARGS."
+repository, otherwise in `default-directory'.
+
+Non-interactively run Git in DIRECTORY with ARGS."
   (interactive (magit-git-command-read-args))
   (require 'eshell)
   (magit-mode-display-buffer (magit-process-buffer nil t)
@@ -1796,7 +1809,7 @@ repository.  Non-interactively run Git in DIRECTORY with ARGS."
 
 (defun magit-git-command-topdir (args directory)
   "Execute a Git subcommand asynchronously, displaying the output.
-Run Git in the root of the current repository.
+Run Git in the top-level directory of the current repository.
 \n(fn)" ; arguments are for internal use
   (interactive (magit-git-command-read-args t))
   (magit-git-command args directory))
@@ -1894,6 +1907,27 @@ a prefix argument is used, otherwise save the branch name."
         (t value))
       (kill-new (message "%s" value)))))
 
+(defun magit-copy-buffer-thing-as-kill ()
+  "Save the thing displayed in the current buffer to the kill ring."
+  (interactive)
+  (--when-let (cond ((derived-mode-p 'magit-diff-mode
+                                     'magit-cherry-mode
+                                     'magit-reflog-mode
+                                     'magit-refs-mode
+                                     'magit-revision-mode
+                                     'magit-stash-mode)
+                     (car magit-refresh-args))
+                    ((derived-mode-p 'magit-log-mode)
+                     (if magit-log-select-pick-function
+                         (car magit-refresh-args)
+                       (cadr magit-refresh-args)))
+                    ((derived-mode-p 'magit-status-mode)
+                     (or (magit-get-current-branch) "HEAD"))
+                    ((derived-mode-p 'magit-stashes-mode)
+                     "refs/stash")
+                    (t nil))
+    (kill-new (message "%s" it))))
+
 ;;; magit.el ends soon
 
 (defconst magit-font-lock-keywords
@@ -1931,20 +1965,22 @@ Git, and Emacs in the echo area.\n\n(fn)"
     (when toplib
       (let* ((dir (file-name-directory toplib))
              (static (expand-file-name "magit-version.el" dir))
-             (gitdir (expand-file-name ".git" dir)))
+             (gitdir (expand-file-name
+                      ".git" (file-name-directory (directory-file-name dir)))))
         (cond ((file-exists-p gitdir)
                (setq magit-version
                      (let ((default-directory dir))
                        (magit-git-string "describe" "--tags" "--dirty")))
-               (ignore-errors (delete-file static)))
+               (unless noninteractive
+                 (ignore-errors (delete-file static))))
               ((file-exists-p static)
                (load-file static))
               ((featurep 'package)
-               (setq magit-version
-                     (and (fboundp 'package-desc-version)
-                          (package-version-join
-                           (package-desc-version
-                            (cadr (assq 'magit package-alist))))))))))
+               (--when-let (assq 'magit package-alist)
+                 (setq magit-version
+                       (and (fboundp 'package-desc-version)
+                            (package-version-join
+                             (package-desc-version (cadr it))))))))))
     (if (stringp magit-version)
         (when (called-interactively-p 'any)
           (message "Magit %s, Git %s, Emacs %s"
@@ -1963,7 +1999,7 @@ Git, and Emacs in the echo area.\n\n(fn)"
       (when (string-match "^\\([0-9]+\\.[0-9]+\\.[0-9]+\\)" version)
         (setq version (match-string 1 version)))
       (when (version< version "1.9.4")
-        (display-warning :error (format "\
+        (display-warning 'magit (format "\
 Magit requires Git >= 1.9.4, you are using %s.
 
 If this comes as a surprise to you, because you do actually have
@@ -1977,9 +2013,9 @@ For X11 something like ~/.xinitrc should work.
 
 If you use Tramp to work inside remote Git repositories, then you
 have to make sure a suitable Git is used on the remote machines
-too.\n" version)))))
+too.\n" version) :error))))
   (when (version< emacs-version "24.4")
-    (display-warning :error (format "\
+    (display-warning 'magit (format "\
 Magit requires Emacs >= 24.4, you are using %s.
 
 If this comes as a surprise to you, because you do actually have
@@ -1989,18 +2025,18 @@ always start Emacs from a shell, then that can be fixed in the
 shell's init file.  If you start Emacs by clicking on an icon,
 or using some sort of application launcher, then you probably
 have to adjust the environment as seen by graphical interface.
-For X11 something like ~/.xinitrc should work.\n" emacs-version)))
+For X11 something like ~/.xinitrc should work.\n" emacs-version) :error))
   (--each '((magit-log-edit  . git-commit)
             (git-commit-mode . git-commit)
             (git-rebase-mode . git-rebase))
     (when (or (featurep (car it)) (locate-library (symbol-name (car it))))
-      (display-warning :error (format "%s has to be removed
+      (display-warning 'magit (format "%s has to be removed
 
 Magit is no longer compatible with the library `%s',
 which was used in earlier releases.  Please remove it, so that
 Magit can use the successor `%s' without the obsolete
 library getting in the way.  Then restart Emacs."
-                                      (car it)  (car it) (cdr it))))))
+                                      (car it)  (car it) (cdr it)) :error))))
 
 (provide 'magit)
 

@@ -1,10 +1,9 @@
 ;;; magit-log.el --- inspect Git history
 
-;; Copyright (C) 2010-2015  The Magit Project Developers
+;; Copyright (C) 2010-2015  The Magit Project Contributors
 ;;
-;; For a full list of contributors, see the AUTHORS.md file
-;; at the top-level directory of this distribution and at
-;; https://raw.github.com/magit/magit/master/AUTHORS.md
+;; You should have received a copy of the AUTHORS.md file which
+;; lists all contributors.  If not, see http://magit.vc/authors.
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Maintainer: Jonas Bernoulli <jonas@bernoul.li>
@@ -309,8 +308,7 @@ http://www.mail-archive.com/git@vger.kernel.org/msg51337.html"
               (?O "Reflog other"            magit-reflog)
               (?h "Log HEAD"                magit-log-head)
               (?a "Log all references"      magit-log-all)
-              (?H "Reflog HEAD"             magit-reflog-head)
-              nil nil (?S "List stashes"    magit-stash-list))
+              (?H "Reflog HEAD"             magit-reflog-head))
   :default-arguments '("--graph" "--decorate")
   :default-action 'magit-log-current
   :max-action-columns 3)
@@ -351,7 +349,7 @@ http://www.mail-archive.com/git@vger.kernel.org/msg51337.html"
                             (magit-get-previous-branch))))
              (input (read-from-minibuffer
                      (format "Log rev,s%s: "
-                             (and default (format " (%s)" default)))
+                             (if default (format " (%s)" default) ""))
                      nil magit-log-read-revs-map
                      nil 'magit-revision-history default)))
         (when (string-equal input "")
@@ -362,8 +360,8 @@ http://www.mail-archive.com/git@vger.kernel.org/msg51337.html"
 ;;;###autoload
 (defun magit-log-current (revs &optional args files)
   "Show log for the current branch.
-When HEAD is detached or with a prefix argument show log for one
-or more revs read from the minibuffer."
+When `HEAD' is detached or with a prefix argument show log for
+one or more revs read from the minibuffer."
   (interactive (magit-log-read-args t))
   (magit-log revs args files))
 
@@ -392,7 +390,7 @@ completion candidates."
 
 ;;;###autoload
 (defun magit-log-head (&optional args files)
-  "Show log for HEAD."
+  "Show log for `HEAD'."
   (interactive (magit-log-read-args nil t))
   (magit-log (list "HEAD") args files))
 
@@ -448,14 +446,14 @@ completion candidates."
 ;;;###autoload
 (defun magit-reflog (ref)
   "Display the reflog of a branch."
-  (interactive (list (magit-read-local-branch "Show reflog for branch")))
+  (interactive (list (magit-read-local-branch-or-ref "Show reflog for")))
   (magit-mode-setup magit-reflog-buffer-name-format nil
                     #'magit-reflog-mode
                     #'magit-reflog-refresh-buffer ref))
 
 ;;;###autoload
 (defun magit-reflog-head ()
-  "Display the HEAD reflog."
+  "Display the `HEAD' reflog."
   (interactive)
   (magit-reflog "HEAD"))
 
@@ -621,7 +619,7 @@ For internal use; don't add to a hook."
           "\\[\\(?5:[^]]*\\)\\] "                  ; author
           "\\(?6:[^ ]*\\) "                        ; date
           "\\(?:\\(?:[^@]+@{\\(?9:[^}]+\\)} "      ; refsel
-          "\\(?10:merge\\|[^:]+\\)?:? ?"           ; refsub
+          "\\(?10:merge \\|autosave \\|restart \\|[^:]+: \\)?" ; refsub
           "\\(?2:.*\\)?\\)\\| \\)$"))              ; msg
 
 (defconst magit-reflog-subject-re
@@ -652,8 +650,8 @@ For internal use; don't add to a hook."
   (when (member "--color" args)
     (let ((ansi-color-apply-face-function
            (lambda (beg end face)
-             (when face
-               (put-text-property beg end 'font-lock-face face)))))
+             (put-text-property beg end 'font-lock-face
+                                (or face 'magit-log-graph)))))
       (ansi-color-apply-on-region (point-min) (point-max))))
   (when (eq style 'cherry)
     (reverse-region (point-min) (point-max)))
@@ -715,7 +713,9 @@ For internal use; don't add to a hook."
         (magit-insert (magit-format-ref-labels refs) nil ?\s))
       (when refsub
         (insert (format "%-2s " refsel))
-        (magit-insert (magit-reflog-format-subject refsub)))
+        (magit-insert
+         (magit-reflog-format-subject
+          (substring refsub 0 (if (string-match-p ":" refsub) -2 -1)))))
       (when msg
         (magit-insert msg (pcase (and gpg (aref gpg 0))
                             (?G 'magit-signature-good)
@@ -822,8 +822,7 @@ another window, using `magit-show-commit'."
                (or (and (magit-diff-auto-show-p 'log-follow)
                         (get-buffer-window magit-revision-buffer-name-format))
                    (and (magit-diff-auto-show-p 'log-oneline)
-                        (derived-mode-p 'magit-log-mode)
-                        (eq (car magit-refresh-args) 'oneline)))
+                        (derived-mode-p 'magit-log-mode)))
                (magit-section-value section))
           (and magit-blame-mode
                (magit-diff-auto-show-p 'blame-follow)
@@ -979,8 +978,9 @@ Type \\[magit-reset-head] to reset HEAD to the commit at point.
   (hack-dir-local-variables-non-file-buffer))
 
 (defun magit-reflog-refresh-buffer (ref)
+  (setq header-line-format
+        (propertize (concat " Reflog for " ref) 'face 'magit-header-line))
   (magit-insert-section (reflogbuf)
-    (magit-insert-heading "Local history of branch " ref)
     (magit-git-wash (apply-partially 'magit-log-wash-log 'reflog)
       "reflog" "show" "--format=%h [%an] %ct %gd %gs"
       (magit-log-format-max-count) ref)))
@@ -996,7 +996,9 @@ Type \\[magit-reset-head] to reset HEAD to the commit at point.
     ("cherry-pick" . magit-reflog-cherry-pick)
     ("initial"     . magit-reflog-commit)
     ("pull"        . magit-reflog-remote)
-    ("clone"       . magit-reflog-remote)))
+    ("clone"       . magit-reflog-remote)
+    ("autosave"    . magit-reflog-commit)
+    ("restart"     . magit-reflog-reset)))
 
 (defun magit-reflog-format-subject (subject)
   (let* ((match (string-match magit-reflog-subject-re subject))
